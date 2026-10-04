@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "id": "spotify",
+  "version": "0.2.0",
+  "displayName": "Spotify",
+  "description": "Spotify catalog and library through the Web API, with local playback prepared by librespot (Premium required, Ogg Vorbis source).",
+  "homepage": "https://open.spotify.com",
+  "icon": "assets/icon.svg",
+  "brandColor": "#1DB954",
+  "defaultPriority": 90,
+  "librarySyncMode": "host-mirror",
+  "playbackTimeoutMs": 600000,
+  "requiredHostFeatures": ["audio-format.vorbis", "playback.source-format", "playback.format-support"],
+  "capabilities": [
+    "auth",
+    "catalog.search",
+    "catalog.entities",
+    "library.sync",
+    "playlists",
+    "playback.resolve",
+    "playback.prefetch",
+    "playback.progressive",
+    "quality.tiers",
+    "metadata.artwork"
+  ],
+  "settings": [
+    {
+      "id": "connection-status",
+      "label": "Catalog",
+      "type": "status",
+      "statusKey": "account"
+    },
+    {
+      "id": "playback-status",
+      "label": "Playback",
+      "type": "status",
+      "statusKey": "playback"
+    },
+    {
+      "id": "client-id",
+      "label": "Spotify app Client ID",
+      "description": "Create an app at developer.spotify.com (Web API, requires Premium), add the redirect URI http://127.0.0.1:43821/callback, and paste its Client ID here. No client secret is needed.",
+      "type": "text",
+      "key": "client-id",
+      "storage": "setting",
+      "placeholder": "32-character Client ID"
+    },
+    {
+      "id": "redirect-uri",
+      "label": "Redirect URI (optional)",
+      "description": "Leave empty to use http://127.0.0.1:43821/callback. Change it only if that port is taken, and register the same URI in your Spotify app.",
+      "type": "text",
+      "key": "redirect-uri",
+      "storage": "setting",
+      "placeholder": "http://127.0.0.1:43821/callback"
+    },
+    {
+      "id": "quality",
+      "label": "Streaming quality",
+      "description": "Target Ogg Vorbis bitrate for new downloads. Spotify may deliver less for some tracks; the player shows the real bitrate. Already cached tracks keep their quality.",
+      "type": "select",
+      "key": "quality",
+      "storage": "setting",
+      "options": [
+        { "value": "vorbis-320", "label": "Very high · 320 kb/s" },
+        { "value": "vorbis-160", "label": "High · 160 kb/s" },
+        { "value": "vorbis-96", "label": "Normal · 96 kb/s" }
+      ],
+      "defaultValue": "vorbis-320"
+    },
+    {
+      "id": "connect",
+      "label": "Connect Spotify",
+      "description": "Signs in to the catalog in your browser, then to playback. Both must be the same Premium account.",
+      "type": "action",
+      "action": { "capability": "auth", "method": "login" }
+    },
+    {
+      "id": "connect-playback",
+      "label": "Reconnect playback",
+      "description": "Repeat only the playback sign-in (librespot).",
+      "type": "action",
+      "action": { "capability": "auth", "method": "login", "args": [{ "target": "playback" }] }
+    },
+    {
+      "id": "sync",
+      "label": "Sync library",
+      "type": "action",
+      "action": { "capability": "library.sync", "method": "enumerate", "args": [{ "fullResync": true }] }
+    },
+    {
+      "id": "disconnect",
+      "label": "Disconnect",
+      "type": "action",
+      "action": { "capability": "auth", "method": "logout" },
+      "destructive": true
+    }
+  ],
+  "permissions": {
+    "networkOrigins": [
+      "https://api.spotify.com",
+      "https://accounts.spotify.com",
+      "https://*.spotify.com",
+      "https://*.scdn.co",
+      "https://*.spotifycdn.com"
+    ],
+    "externalOrigins": ["https://accounts.spotify.com"],
+    "secrets": ["catalog", "playback"],
+    "helpers": [
+      {
+        "id": "helper",
+        "executable": "helper/dist/spotify_helper",
+        "allowedArguments": ["describe", "login", "check-session", "fetch-track"]
+      },
+      {
+        "id": "transcode",
+        "executable": "helper/dist/ffmpeg",
+        "processPriority": "below-normal",
+        "argumentTemplate": [
+          "-hide_banner", "-loglevel", "error", "-nostdin", "-threads", "1",
+          "-i", { "cachePath": "input" }, "-map", "0:a:0", "-vn",
+          "-af", "aresample=osf=s16:dither_method=triangular",
+          "-c:a", "flac", "-compression_level", "5", "-map_metadata", "-1",
+          "-f", "flac", { "cachePath": "output" }
+        ]
+      },
+      {
+        "id": "probe",
+        "executable": "helper/dist/ffmpeg",
+        "processPriority": "below-normal",
+        "argumentTemplate": [
+          "-hide_banner", "-nostdin", "-threads", "1", "-i", { "cachePath": "input" },
+          "-map", "0:a:0", "-f", "null", "-"
+        ]
+      }
+    ]
+  },
+  "build": {
+    "steps": [{ "command": "helper/build.sh", "platforms": ["darwin"] }],
+    "extraResources": [
+      { "from": "assets", "to": "providers/spotify/assets", "filter": ["icon.svg"] },
+      { "from": "helper/dist", "to": "providers/spotify/helper/dist" }
+    ],
+    "binaries": [
+      "providers/spotify/helper/dist/spotify_helper",
+      "providers/spotify/helper/dist/ffmpeg"
+    ]
+  }
+}
